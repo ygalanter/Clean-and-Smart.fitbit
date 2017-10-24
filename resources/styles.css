@@ -1,0 +1,23 @@
+.smalltext     {
+  font-size: 40;
+  font-family: Seville-Book-Condensed;
+  font-weight: regular;
+  fill: white;
+  text-length: 10
+}
+
+.timetext     {
+  font-size: 120;
+  font-family: System-Bold;
+  font-weight: regular;
+  fill: white;
+  text-length: 10
+}
+
+.datetext     {
+  font-size: 30;
+  font-family: Colfax-Light;
+  font-weight: regular;
+  fill: white;
+  text-length: 20
+}
