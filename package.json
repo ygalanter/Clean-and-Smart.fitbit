@@ -8,6 +8,11 @@
     "requestedPermissions": [
       "access_location",
       "access_internet"
-    ]
+    ],
+    "i18n": {
+      "en": {
+        "name": "Clean & Smart"
+      }
+    }
   }
 }

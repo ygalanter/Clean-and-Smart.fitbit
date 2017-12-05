@@ -71,9 +71,9 @@ export default class Weather {
 
 function prv_fetchRemote(provider, apiKey, feelsLike) {
   geolocation.getCurrentPosition(
-    (position) => { 
+    (position) => {
       prv_fetch(provider, apiKey, feelsLike, position.coords.latitude, position.coords.longitude,
-          (data) => { 
+          (data) => {
             if (peerSocket.readyState === peerSocket.OPEN) {
               let answer = {};
               answer[WEATHER_MESSAGE_KEY] = data;
@@ -183,7 +183,7 @@ function prv_queryWUWeather(apiKey, feelsLike, latitude, longitude, success, err
       if(condition === 'clear'){
         condition = Conditions.ClearSky;
       }
-      else if(condition === 'mostlyysunny' || condition === 'partlycloudy'){
+      else if(condition === 'mostlysunny' || condition === 'partlycloudy'){
         condition = Conditions.FewClouds;
       }
       else if(condition === 'partlysunny' || condition === 'mostlycloudy'){
@@ -229,7 +229,7 @@ function prv_queryWUWeather(apiKey, feelsLike, latitude, longitude, success, err
 };
 
 function prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success, error) {
-  var url = 'https://api.darksky.net/forecast/' + apiKey + '/' + latitude + ',' + longitude + '?exclude=minutely,hourly,alerts,flags&units=si';
+  let url = 'https://api.darksky.net/forecast/' + apiKey + '/' + latitude + ',' + longitude + '?exclude=minutely,hourly,alerts,flags&units=si';
 
   fetch(url)
   .then((response) => {return response.json()})
@@ -280,8 +280,25 @@ function prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success
         sunset : data.daily.data[0].sunsetTime * 1000,
         timestamp : new Date().getTime()
       };
-      // Send the weather data to the device
-      if(success) success(weather);
+    
+      // retreiving location name from Open Street Map
+      let url = 'http://nominatim.openstreetmap.org/reverse?lat=' + latitude + '&lon=' + longitude + '&format=json&accept-language=en-US';
+    
+      fetch(url)
+        .then((response) => {return response.json()})
+        .then((data) => { 
+        
+             if (data.address.hamlet != undefined) weather.location = data.address.hamlet
+             else if (data.address.village != undefined) weather.location = data.address.village
+             else if (data.address.town != undefined) weather.location = data.address.town 
+             else if (data.address.city != undefined) weather.location = data.address.city   
+        
+            // Send the weather data to the device
+            if(success) success(weather);        
+        
+      }).catch((err) => { 
+            if(success) success(weather); // if location name not found - sending weather without location
+      });
   })
   .catch((err) => { if(error) error(err); });
 };
@@ -340,6 +357,10 @@ function prv_queryYahooWeather(latitude, longitude, success, error) {
           condition = Conditions.Snow; break;
         case 20 :
           condition = Conditions.Mist; break;
+        case 26 :
+        case 27 :
+        case 28 :
+          condition = Conditions.BrokenClouds; break;
         default : condition = Conditions.Unknown; break;
       }
 

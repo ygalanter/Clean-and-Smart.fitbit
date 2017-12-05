@@ -1,7 +1,6 @@
 //importing libraries
 import clock from "clock";
 import document from "document";
-import {display} from "display";
 import * as messaging from "messaging";
 import * as fs from "fs";
 import { me } from "appbit";
@@ -34,7 +33,7 @@ try {
   userSettings = fs.readFileSync("user_settings.json", "json");
   //restoring previous weather
   icon.href = userSettings.iconHref;
-  temp.innerText = userSettings.tempText;
+  temp.text = userSettings.tempText;
   
 } catch (e) {
   userSettings = {
@@ -43,8 +42,14 @@ try {
     weatherProvider: "yahoo", // possible: yahoo, owm, wunderground or darksky)
     weatherAPIkey: "", //by deafult API key is not set
     dateFormat: "mdy", //possible mdy = MON-DD-YYYY, dmy = DD-MON-YYYY, iso = YYYY-MM-DD
-    timeSeparator: ":" //possible : or .
+    timeSeparator: ":", //possible : or .
+    iconHref: "images/unknown.png",
+    tempText: "..."
   }
+}
+
+function updateBattery(charge) {
+  batterytext.text = `${charge}%`;
 }
 
 // on app exit collect settings 
@@ -62,6 +67,8 @@ function setWeatherInterval(interval) {
 // setting weather provider
 let weather = new Weather();
 function setWeatherProvider(provider, apikey) {
+  console.log("Provider: " + provider);
+  console.log("API Key: " + apikey)
   weather.setProvider(provider); 
   weather.setApiKey(apikey);
   weather.setMaximumAge(25 * 1000); 
@@ -74,11 +81,11 @@ weather.onsuccess = (data) => {
   icon.href = "images/" + weather_icon[data.isDay? "day" : "night"][data.conditionCode];
   
   //setting temperature
-  temp.innerText = Math.round(data["temperature" + userSettings.weatherTemperature]) + "°"
+  temp.text = Math.round(data["temperature" + userSettings.weatherTemperature]) + "°"
   
   // preserving in user settings
   userSettings.iconHref = icon.href;
-  userSettings.tempText = temp.innerText;
+  userSettings.tempText = temp.text;
 }
 
 weather.onerror = (error) => {
@@ -88,11 +95,11 @@ weather.onerror = (error) => {
   icon.href = "images/unknown.png";
   
   //setting temperature
-  temp.innerText = "..."
+  temp.text = "..."
   
   // preserving in user settings
   userSettings.iconHref = icon.href;
-  userSettings.tempText = temp.innerText;
+  userSettings.tempText = temp.text;
 }
 
 // on socket open - begin fetching weather
@@ -109,32 +116,37 @@ messaging.peerSocket.onclose = () => {
   
 }
 
+// check if a setting has changed and if it is - updates it and optionally calls callback function
+function updateSettings(objSettings, key, newValue, onUpdate) {
+  if (objSettings[key] != newValue) {
+    objSettings[key] = newValue;
+    if (onUpdate) {
+      onUpdate()
+    }
+  }
+}
+
 
 messaging.peerSocket.onmessage  = evt =>  {
   
    switch (evt.data.key) {
      case "weatherInterval":
-       userSettings.weatherInterval = JSON.parse(evt.data.newValue).values[0].value;;
-       setWeatherInterval(userSettings.weatherInterval);
+       updateSettings(userSettings, evt.data.key, JSON.parse(evt.data.newValue).values[0].value, ()=>{setWeatherInterval(userSettings.weatherInterval)});
        break;
      case "weatherProvider":
-       userSettings.weatherProvider = JSON.parse(evt.data.newValue).values[0].value;;
-       setWeatherProvider(userSettings.weatherProvider, userSettings.weatherAPIkey);
+       updateSettings(userSettings, evt.data.key, JSON.parse(evt.data.newValue).values[0].value, ()=>{setWeatherProvider(userSettings.weatherProvider, userSettings.weatherAPIkey)});
        break;
      case "weatherAPIkey":
-       userSettings.weatherAPIkey = JSON.parse(evt.data.newValue).name;
-       setWeatherProvider(userSettings.weatherProvider, userSettings.weatherAPIkey);
+       updateSettings(userSettings, evt.data.key,  JSON.parse(evt.data.newValue).name, ()=>{setWeatherProvider(userSettings.weatherProvider, userSettings.weatherAPIkey)});
        break;
      case "weatherTemperature":
-       userSettings.weatherTemperature = JSON.parse(evt.data.newValue).values[0].value;;
-       weather.fetch();
+       updateSettings(userSettings, evt.data.key, JSON.parse(evt.data.newValue).values[0].value, ()=>{weather.fetch()});
        break;
      case "dateFormat":
-       userSettings.dateFormat = JSON.parse(evt.data.newValue).values[0].value;;
-       updateClock();
+       updateSettings(userSettings, evt.data.key, JSON.parse(evt.data.newValue).values[0].value, ()=>{updateClock()});
        break;
      case "timeSeparator":
-       userSettings.timeSeparator = JSON.parse(evt.data.newValue).values[0].value;;
+       updateSettings(userSettings, evt.data.key, JSON.parse(evt.data.newValue).values[0].value, ()=>{updateClock()});
        updateClock();
        break;
        
@@ -159,11 +171,11 @@ function updateClock() {
   let mins = dtlib.zeroPad(today.getMinutes());
   
   //displaying time 
-  time.innerText = `${hours}${userSettings.timeSeparator}${mins}`;
+  time.text = `${hours}${userSettings.timeSeparator}${mins}`;
   
   // displaying day of the week
   let dow = today.getDay();
-  dowlbl.innerText = dtlib.getDowNameLong(dtlib.LANGUAGES.ENGLISH, dow);
+  dowlbl.text = dtlib.getDowNameLong(dtlib.LANGUAGES.ENGLISH, dow);
   
   
   // getting short name of the month in English
@@ -178,13 +190,13 @@ function updateClock() {
   //displaying date
   switch (userSettings.dateFormat) {
     case "mdy":
-      datelbl.innerText = `${month}-${day}-${year}`;
+      datelbl.text = `${month}-${day}-${year}`;
       break;
     case "dmy":
-      datelbl.innerText = `${day}-${month}-${year}`;
+      datelbl.text = `${day}-${month}-${year}`;
       break;
     default: // "iso"
-      datelbl.innerText = `${year}-${dtlib.zeroPad(today.getMonth()+1)}-${day}`;
+      datelbl.text = `${year}-${dtlib.zeroPad(today.getMonth()+1)}-${day}`;
       break;      
   }
   
@@ -196,4 +208,6 @@ clock.ontick = () => updateClock();
 // Don't start with a blank screen
 updateClock();
 
-batterytext.innerText = "37%" // MOKUP! Replace after battery API is working
+//battery
+updateBattery(Math.floor(battery.chargeLevel));
+battery.onchange = () => updateBattery(Math.floor(battery.chargeLevel));

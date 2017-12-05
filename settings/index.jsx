@@ -33,16 +33,7 @@ function mySettings(props) {
             {name:"Celsius", value:"C"},
             {name:"Fahrenheit", value:"F"}
           ]}
-        />
-        <Select
-          label={`Date Format`}
-          settingsKey="dateFormat"
-          options={[
-            {name:"month-day-year", value:"mdy"},
-            {name:"day-month-year", value:"dmy"},
-            {name:"yyyy-mm-dd", value:"iso"}
-          ]}
-        />   
+        /> 
         <Select
           label={`Time Separator`}
           settingsKey="timeSeparator"
