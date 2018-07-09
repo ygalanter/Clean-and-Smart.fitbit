@@ -1,0 +1,18 @@
+<svg>
+  <rect id="background" x="0" y="0" width="100%" height="100%" />
+
+  <text id="temp" class="smalltext" x="0" y="32" text-anchor="start">...</text>  
+  <image id='icon' x='50%-20' y='-2' width="40" height="40" href="images/unknown.png" />
+  <text id="batterytext" class="smalltext" x="100%" y="32" text-anchor="end"/>  
+  
+  <line id="batterycolor" x1="0" y1="44" x2="100%" y2="44" fill="fb-green" stroke-width="3" />
+  
+  <text id="dow" class="datetext" x="50%" y="32%" text-anchor="middle" />
+  <g transform="scale(0.92,1) translate(50%, 0)">
+   <text id="time" class="timetext" text-anchor="middle" />
+  </g>
+  <text id="date" class="datetext" x="50%" y="88%" text-anchor="middle" />  
+
+  <line id="btcolor" x1="0" y1="100%-2" x2="100%" y2="100%-3" fill="fb-blue" stroke-width="3" /> 
+
+</svg>

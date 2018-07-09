@@ -1,7 +1,9 @@
 import { peerSocket } from "messaging";
 import { geolocation } from "geolocation";
+import { outbox } from "file-transfer";
+import * as cbor from "cbor";
 
-import { WEATHER_MESSAGE_KEY, Conditions } from './common.js';
+import { WEATHER_MESSAGE_KEY, WEATHER_DATA_FILE, WEATHER_ERROR_FILE, Conditions } from './common.js';
 
 export default class Weather {
   
@@ -53,6 +55,7 @@ export default class Weather {
         //console.log("Latitude: " + position.coords.latitude + " Longitude: " + position.coords.longitude);
         prv_fetch(this._provider, this._apiKey, this._feelsLike, position.coords.latitude, position.coords.longitude, 
               (data) => {
+                data.provider = this._provider;
                 this._weather = data;
                 if(this.onsuccess) this.onsuccess(data);
               }, 
@@ -74,35 +77,22 @@ function prv_fetchRemote(provider, apiKey, feelsLike) {
     (position) => {
       prv_fetch(provider, apiKey, feelsLike, position.coords.latitude, position.coords.longitude,
           (data) => {
-            if (peerSocket.readyState === peerSocket.OPEN) {
-              let answer = {};
-              answer[WEATHER_MESSAGE_KEY] = data;
-              peerSocket.send( answer );
-            } else {
-              console.log("Error: Connection is not open with the device");
-            }
+            data.provider = provider;
+            outbox
+              .enqueue(WEATHER_DATA_FILE, cbor.encode(data))
+              .catch(error => console.log("Failed to send weather: " + error));
           },
           (error) => { 
-            if (peerSocket.readyState === peerSocket.OPEN) {
-              let answer = {};
-              answer[WEATHER_MESSAGE_KEY] = { error : error };  
-              peerSocket.send( answer );
-            }
-            else {
-              console.log("Error : " + JSON.stringify(error) + " " + error); 
-            }
+            outbox
+              .enqueue(WEATHER_ERROR_FILE, cbor.encode({ error : error }))
+              .catch(error => console.log("Failed to send weather error: " + error));
           }
       );
     }, 
     (error) => {
-      if (peerSocket.readyState === peerSocket.OPEN) {
-        let answer = {};
-        answer[WEATHER_MESSAGE_KEY] = { error : error };  
-        peerSocket.send( answer );
-      }
-      else {
-        console.log("Location Error : " + error.message); 
-      }
+      outbox
+        .enqueue(WEATHER_ERROR_FILE, cbor.encode({ error : error }))
+        .catch(error => console.log("Failed to send weather error: " + error));
     }, 
     {"enableHighAccuracy" : false, "maximumAge" : 1000 * 1800});
 }
@@ -118,6 +108,9 @@ function prv_fetch(provider, apiKey, feelsLike, latitude, longitude, success, er
   else if( provider === "darksky" ) {
     prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success, error);
   }
+  else if( provider === "weatherbit" ) {
+    prv_queryWeatherbit(apiKey, latitude, longitude, success, error);
+  }
   else 
   {
     prv_queryYahooWeather(latitude, longitude, success, error);
@@ -125,14 +118,14 @@ function prv_fetch(provider, apiKey, feelsLike, latitude, longitude, success, er
 }
 
 function prv_queryOWMWeather(apiKey, latitude, longitude, success, error) {
-  var url = 'http://api.openweathermap.org/data/2.5/weather?appid=' + apiKey + '&lat=' + latitude + '&lon=' + longitude;
+  var url = 'https://api.openweathermap.org/data/2.5/weather?appid=' + apiKey + '&lat=' + latitude + '&lon=' + longitude;
 
   fetch(url)
   .then((response) => {return response.json()})
   .then((data) => { 
       
       if(data.weather === undefined){
-        if(error) error(data);
+        if(error) error(data.message);
         return;
       }
 
@@ -157,6 +150,7 @@ function prv_queryOWMWeather(apiKey, latitude, longitude, success, error) {
         description : data.weather[0].description,
         isDay : (data.dt > data.sys.sunrise && data.dt < data.sys.sunset),
         conditionCode : condition,
+        realConditionCode : data.weather[0].id,
         sunrise : data.sys.sunrise * 1000,
         sunset : data.sys.sunset * 1000,
         timestamp : new Date().getTime()
@@ -168,14 +162,14 @@ function prv_queryOWMWeather(apiKey, latitude, longitude, success, error) {
 };
 
 function prv_queryWUWeather(apiKey, feelsLike, latitude, longitude, success, error) {
-  var url = 'http://api.wunderground.com/api/' + apiKey + '/conditions/q/' + latitude + ',' + longitude + '.json';
+  var url = 'https://api.wunderground.com/api/' + apiKey + '/conditions/q/' + latitude + ',' + longitude + '.json';
 
   fetch(url)
   .then((response) => {return response.json()})
   .then((data) => { 
       
       if(data.current_observation === undefined){
-        if(error) error(data);
+        if(error) error(data.response.error.description);
         return;
       }
 
@@ -199,7 +193,7 @@ function prv_queryWUWeather(apiKey, feelsLike, latitude, longitude, success, err
         condition = Conditions.Thunderstorm;
       }
       else if(condition === 'snow' || condition === 'sleet' || condition === 'flurries'){
-        condition = Conditions.Thunderstorm;
+        condition = Conditions.Snow;
       }
       else if(condition === 'fog' || condition === 'hazy'){
         condition = Conditions.Mist;
@@ -217,7 +211,8 @@ function prv_queryWUWeather(apiKey, feelsLike, latitude, longitude, success, err
         location : data.current_observation.display_location.city,
         description : data.current_observation.weather,
         isDay : data.current_observation.icon_url.indexOf("nt_") == -1,
-        conditionCode :condition,
+        conditionCode : condition,
+        realConditionCode : data.current_observation.icon,
         sunrise : 0,
         sunset : 0,
         timestamp : new Date().getTime()
@@ -233,7 +228,7 @@ function prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success
 
   fetch(url)
   .then((response) => {return response.json()})
-  .then((data) => {        
+  .then((data) => {       
     
       if(data.currently === undefined){
         if(error) error(data);
@@ -257,7 +252,7 @@ function prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success
         condition = Conditions.Thunderstorm;
       }
       else if(condition === 'snow' || condition === 'sleet'){
-        condition = Conditions.Thunderstorm;
+        condition = Conditions.Snow;
       }
       else if(condition === 'fog'){
         condition = Conditions.Mist;
@@ -275,14 +270,15 @@ function prv_queryDarkskyWeather(apiKey, feelsLike, latitude, longitude, success
         location : "",
         description : data.currently.summary,
         isDay : data.currently.icon.indexOf("-day") > 0,
-        conditionCode :condition,
+        conditionCode : condition,
+        realConditionCode : data.currently.icon,
         sunrise : data.daily.data[0].sunriseTime * 1000,
         sunset : data.daily.data[0].sunsetTime * 1000,
         timestamp : new Date().getTime()
       };
     
       // retreiving location name from Open Street Map
-      let url = 'http://nominatim.openstreetmap.org/reverse?lat=' + latitude + '&lon=' + longitude + '&format=json&accept-language=en-US';
+      let url = 'https://nominatim.openstreetmap.org/reverse?lat=' + latitude + '&lon=' + longitude + '&format=json&accept-language=en-US';
     
       fetch(url)
         .then((response) => {return response.json()})
@@ -351,6 +347,7 @@ function prv_queryYahooWeather(latitude, longitude, success, error) {
         case 13 :
         case 14 :
         case 15 :
+        case 16 :
         case 41 :
         case 42 :
         case 43 :
@@ -375,8 +372,98 @@ function prv_queryYahooWeather(latitude, longitude, success, error) {
         description : data.query.results.channel.item.condition.text,
         isDay : current_time >  sunrise_time && current_time < sunset_time,
         conditionCode : condition,
+        realConditionCode : data.query.results.channel.item.condition.code,
         sunrise : sunrise_time.getTime(),
         sunset : sunset_time.getTime(),
+        timestamp : current_time.getTime()
+      };
+      // Send the weather data to the device
+      if(success) success(weather);
+    });
+  })
+  .catch((err) => {
+    if(error) error(err);
+  });
+};
+
+function prv_queryWeatherbit(key, latitude, longitude, success, error) {
+  var url = 'https://api.weatherbit.io/v2.0/current?key='+key+'&lat='+latitude+'&lon='+longitude;
+
+  fetch(encodeURI(url))
+  .then((response) => {
+    response.json()
+    .then((data) => {
+      
+      if(data.data === undefined || data.count !== 1) {
+        if(error) error(data.error);
+        return;
+      }
+      
+      var condition = parseInt(data.data[0].weather.code);
+      switch(condition){
+        case 200 :
+        case 201 :
+        case 202 :
+        case 230 :
+        case 231 :
+        case 232 :
+        case 233 :
+          condition = Conditions.Thunderstorm;  break;
+        case 520 :
+        case 521 :
+        case 522 :
+          condition = Conditions.ShowerRain;  break;
+        case 500 :
+        case 501 :
+        case 502 :
+        case 511 :
+          condition = Conditions.Rain;  break;
+        case 300 :
+        case 301 :
+        case 302 :
+        case 600 :
+        case 601 :
+        case 602 :
+        case 603 :
+        case 610 :
+        case 611 :
+        case 612 :
+        case 621 :
+        case 622 :
+        case 623 :
+          condition = Conditions.Snow;  break;
+        case 700 :
+        case 711 :
+        case 721 :
+        case 731 :
+        case 741 :
+        case 751 :
+          condition = Conditions.Mist;  break;
+        case 800 :
+          condition = Conditions.ClearSky; break;
+        case 801 :
+          condition = Conditions.FewClouds; break;
+        case 802 :
+          condition = Conditions.ScatteredClouds; break;
+        case 803 :
+        case 804 :
+          condition = Conditions.BrokenClouds; break;
+        default : condition = Conditions.Unknown; break;
+      }
+      
+      var current_time = new Date();
+      var temp = data.data[0].temp;
+      let weather = {
+        temperatureC : temp,
+        temperatureF : (temp * 9/5 + 32),
+        conditionCode : data.data[0].weather.code,
+        location : data.data[0].city_name,
+        description : data.data[0].weather.description,
+        isDay : data.data[0].weather.icon.endsWith("d"),
+        conditionCode : condition,
+        realConditionCode : data.data[0].weather.code,
+        sunrise : data.data[0].sunrise,
+        sunset : data.data[0].sunset,
         timestamp : current_time.getTime()
       };
       // Send the weather data to the device

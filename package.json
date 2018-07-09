@@ -9,6 +9,10 @@
       "access_location",
       "access_internet"
     ],
+    "buildTargets": [
+      "higgs",
+      "meson"
+    ],
     "i18n": {
       "en": {
         "name": "Clean & Smart"
