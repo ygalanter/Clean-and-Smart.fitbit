@@ -129,17 +129,22 @@ render() {
             {name:"Every hour", value:"60"}
           ]}
         />
-        <Select
-          label={`Weather service provider`}
-          settingsKey="weatherProvider"
-          options={[
-            {name:"Yahoo Weather", value:"yahoo"},
-            {name:"Open Weather Map", value:"owm"},
-            // {name:"Weather Underground", value:"wunderground"},
-            {name:"Dark Sky", value:"darksky"},
-            {name:"Weatherbit", value:"weatherbit"}
-          ]}
-        />
+        <Text>If you experience issues with the default weather provider - you can select a custom one below: Weatherbit or Open Weather Map. 
+                  NOTE: In order to use custom provider you need to register to obtain free weather key or API key:</Text>
+                  <Text>Weatherbit: https://www.weatherbit.io</Text>
+                  <Text>Open Weather Map: https://www.openweathermap.org</Text>
+                  <Text>Once you obtained the key, select custom weather provider below, and enter the key you obtained.</Text>
+              <Select
+                label={`Weather service provider`}
+                settingsKey="weatherProvider"
+                options={[
+                  {name:"Default", value:"default"},
+                  {name:"Open Weather Map", value:"owm"},
+                  // {name:"Weather Underground", value:"wunderground"},
+                  // {name:"Dark Sky", value:"darksky"},
+                  {name:"Weatherbit", value:"weatherbit"}
+                ]}
+              />
         <TextInput
           label="Weather Key" settingsKey="weatherAPIkey"
         />
